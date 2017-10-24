@@ -4,7 +4,6 @@
 #include <OSCBundle.h>
 #include <TimerOne.h>
 
-
 SLIPEncodedSerial SLIPSerial(Serial);
 
 #define NUM_MOTORS 8
@@ -25,7 +24,14 @@ typedef enum motorStates { // enum with motor States, just a list of Names const
   STOP
 };
 
+typedef enum allStates {
+  FORWARD_ALL,
+  BACKWARD_ALL,
+  STOP_ALL
+};
+
 motorStates actualState[NUM_MOTORS];
+allStates masterState;
 
 void setup() {
 
@@ -43,6 +49,7 @@ void setup() {
     pinMode(switchBack[i], INPUT);
 
     actualState[i] = STOP;  // start with STOP state
+    masterState = STOP_ALL;
   }
 
   pinMode(switchForwardAll, INPUT);
@@ -56,7 +63,7 @@ void loop()
 {
   // check whether button has been pressed...
   checkSwitches();
-
+  delay(10);    //debounces...
 }
 
 // OSC message sender
@@ -96,28 +103,51 @@ boolean sendMotorCommand(enum motorStates state, int motorID) {
   return 1; //return 1 for OK
 }
 
+boolean sendAllCommand(enum allStates state2, int motorID) {
+
+    //same for master switch:
+  if (masterState != state2) {
+    masterState = state2; // update actual state
+  
+    switch (state2) {
+      case FORWARD_ALL:
+        for (int motorID = 0; motorID < NUM_MOTORS; motorID++) {
+          sendOSC("/F", motorID);
+        }
+        break;
+      case BACKWARD_ALL:
+        for (int motorID = 0; motorID < NUM_MOTORS; motorID++) {
+          sendOSC("/B", motorID);
+        }
+        break;
+      case STOP_ALL:
+        for (int motorID = 0; motorID < NUM_MOTORS; motorID++) {
+          sendOSC("/S", motorID);
+        }
+        break;
+    }
+  }
+  //read switches and return error in case
+  //if it gets here I hope everything is ok
+  return 1; //return 1 for OK
+}
+
 void checkSwitches() {
 
   // Master button
-//  boolean F = digitalRead(switchForwardAll);
-//  boolean B = digitalRead(switchBackAll);
-//
-//      // send switch states
-//    if (F == 0) {
-//      for (int motorID = 0; motorID < NUM_MOTORS; motorID++)  {
-//        sendMotorCommand(FORWARD, motorID); // motorID will be the index
-//      }
-//    }
-//    else if (B == 0) {
-//      for (int motorID = 0; motorID < NUM_MOTORS; motorID++)  {
-//        sendMotorCommand(BACKWARD, motorID); // motorID will be the index
-//      }
-//    }
-//    else {
-//      for (int motorID = 0; motorID < NUM_MOTORS; motorID++)  {
-//        sendMotorCommand(STOP, motorID); // motorID will be the index
-//      }
-//    }
+  boolean F = digitalRead(switchForwardAll);
+  boolean B = digitalRead(switchBackAll);
+
+    // send switch states
+    if (F == 0) {
+      sendAllCommand(FORWARD_ALL, 0);
+    }
+    else if (B == 0) {
+      sendAllCommand(BACKWARD_ALL, 0);
+    }
+    else {
+      sendAllCommand(STOP_ALL, 0);
+    }
     
   // individual buttons:
   for (int motorID = 0; motorID < NUM_MOTORS; motorID++) {
